@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.6
-from config import TOKEN
+from config import TOKEN, MAP_LINK
 import foursquare # type: ignore
 
 from kython import *
@@ -10,10 +10,15 @@ import csv
 from pprint import pprint
 import sys
 
-lists = api.users.lists()['lists']['groups'][1]['items']
+lists = api.users.lists()
+
+def_lists = lists['lists']['groups'][0]['items']
+user_lists = lists['lists']['groups'][1]['items']
+
+all_lists = def_lists + user_lists
 
 # TODO use favorites too
-lmap = {l['name'].lower(): l for l in lists}
+lmap = {l['name'].lower(): l for l in all_lists}
 
 print("LISTS:")
 for k in lmap:
@@ -40,26 +45,25 @@ def gen_places(lst) -> Iterable[Place]:
         yield Place(
             lst=lst['name'],
             name=venue['name'],
-            address=venue['location']['address'],
+            address=venue['location'].get('address', 'NO ADDRESS!'),
             lat=venue['location']['lat'],
             lon=venue['location']['lng'],
         )
 
 
-def gen_all_places():
-    for lname in ('london-todo', 'london-food', 'london'):
-        for p in gen_places(lmap[lname]):
-            yield p
-
-INTERESTING = ('london-todo', 'london-food', 'london',)
-
-def get_color(s: str):
-    hash(s)
+# TODO rename to config?
+INTERESTING = {
+    'my saved places': 'red',
+    'my liked places': 'pink',
+    'london-food': None,
+    'london': None,
+    'london-todo': 'red',
+}
 
 # pip install fastkml, shapely
 import fastkml # type: ignore
 K = fastkml
-from shapely.geometry import Point # type
+from shapely.geometry import Point # type: ignore
 
 
 class KmlMaker:
@@ -73,6 +77,7 @@ class KmlMaker:
             name='doc name',
             description='doc description'
         )
+        self.color2style: Dict[str, str] = {}
         self.kml.append(self.doc)
 
 
@@ -101,8 +106,9 @@ class KmlMaker:
         (rr, gg, bb) = webcolors.name_to_rgb(color)
         return "ff{:02x}{:02x}{:02x}".format(bb, gg, rr)
 
-    def make_icon_style(self, name: str, color: str='red') -> str:
-        style_id = f"style-{name}"
+    def _add_style(self, color: str):
+        style_id = f"style-{color}"
+        style_url = f"#{style_id}"
         style = self.make_Style(
             id=style_id,
             styles=[
@@ -117,11 +123,17 @@ class KmlMaker:
 
         style_map = self.make_StyleMap(
             id=style_id,
-            normal=K.StyleUrl(url=f"#{style_id}"),
-            highlight=K.StyleUrl(url=f"#{style_id}"),
+            normal=K.StyleUrl(url=style_url),
+            highlight=K.StyleUrl(url=style_url),
         )
         self.doc.append_style(style_map)
-        return f'#{style_id}'
+
+        self.color2style[color] = style_url
+
+    def make_icon_style(self, color: str) -> str:
+        if color not in self.color2style:
+            self._add_style(color)
+        return self.color2style.get(color)
 
     def add_folder(self, name: str, items: List):
         folder = K.Folder(
@@ -140,18 +152,15 @@ class KmlMaker:
 # TODO generate each color
 # TODO nicer, declarative DSL for building that crap
 def build_kml() -> KmlMaker:
-    # Create the root KML object
     kml = KmlMaker()
-    style_url = kml.make_icon_style(name='blue', color='blue')
-
-    for lname in INTERESTING:
-        # Create a KML Folder and add it to the Document
+    for lname, color in INTERESTING.items():
+        style_url = None if color is None else kml.make_icon_style(color=color)
         marks = []
         for p in gen_places(lmap[lname]):
             pm = K.Placemark(
                 id=p.name,
                 name=p.name,
-                description=p.address,
+                description=f"List: {lname}\n{p.address}",
                 styleUrl=style_url,
             )
             pm.geometry = Point(p.lon, p.lat)
@@ -166,8 +175,12 @@ def build_kml() -> KmlMaker:
 
 kml = build_kml()
 
+import os.path
+out_file = os.path.abspath("res.kml")
 
-with open("res.kml", 'w') as fo:
-    import sys
-    sys.stdout.write(kml.to_string(prettyprint=True))
+with open(out_file, 'w') as fo:
+    fo.write('<?xml version="1.0" encoding="UTF-8"?>\n')
     fo.write(kml.to_string(prettyprint=True))
+
+print(f"Map link:\n{MAP_LINK}")
+print(f"File to upload:\n{out_file}")
