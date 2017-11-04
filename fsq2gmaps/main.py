@@ -59,46 +59,108 @@ def get_color(s: str):
 # pip install fastkml, shapely
 import fastkml # type: ignore
 K = fastkml
-from shapely.geometry import Point
+from shapely.geometry import Point # type
+
+
+class KmlMaker:
+    NS = '{http://www.opengis.net/kml/2.2}'
+
+    def __init__(self) -> None:
+        self.kml = K.KML()
+        self.doc = K.Document(
+            ns=KmlMaker.NS,
+            id='docid',
+            name='doc name',
+            description='doc description'
+        )
+        self.kml.append(self.doc)
+
+
+    def make_Style(self, **kwargs):
+        return K.Style(
+            # ns=KmlMaker.NS,
+            **kwargs
+        )
+
+    def make_IconStyle(self, **kwargs):
+        return K.IconStyle(
+            # ns=KmlMaker.NS,
+            **kwargs
+        )
+
+    # TODO is ns really necessary?
+    def make_StyleMap(self, **kwargs):
+        return K.StyleMap(
+            # ns=KmlMaker.NS,
+            **kwargs
+        )
+
+    def _get_color(self, color: str):
+        # ugh, it's aabbggrr for some reason..
+        import webcolors # type: ignore
+        (rr, gg, bb) = webcolors.name_to_rgb(color)
+        return "ff{:02x}{:02x}{:02x}".format(bb, gg, rr)
+
+    def make_icon_style(self, name: str, color: str='red') -> str:
+        style_id = f"style-{name}"
+        style = self.make_Style(
+            id=style_id,
+            styles=[
+                self.make_IconStyle(
+                    icon_href="http://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png",
+                    # TODO ugh, it's aabbggrr
+                    color=self._get_color(color),
+                ),
+            ],
+        )
+        self.doc.append_style(style)
+
+        style_map = self.make_StyleMap(
+            id=style_id,
+            normal=K.StyleUrl(url=f"#{style_id}"),
+            highlight=K.StyleUrl(url=f"#{style_id}"),
+        )
+        self.doc.append_style(style_map)
+        return f'#{style_id}'
+
+    def add_folder(self, name: str, items: List):
+        folder = K.Folder(
+            id=name, # TODO 
+            name=name
+        )
+        for i in items:
+            folder.append(i)
+        self.doc.append(folder)
+
+    def to_string(self, **kwargs) -> str:
+        if 'prettyprint' not in kwargs:
+            kwargs['prettyprint'] = True
+        return self.kml.to_string(**kwargs)
 
 # TODO generate each color
 # TODO nicer, declarative DSL for building that crap
-def build_kml():
+def build_kml() -> KmlMaker:
     # Create the root KML object
-    kml = K.KML()
-    ns = '{http://www.opengis.net/kml/2.2}'
-    
-    # Create a KML Document and add it to the KML root object
-    doc = K.Document(ns, 'docid', 'doc name', 'doc description')
-
-    style = K.Style(ns=ns, id="red-normal")
-    # TODO ugh, it's aabbggrr
-    red = K.styles.IconStyle(ns=ns, color="ff000000")
-    red.icon_href = "http://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png"
-    # TODO ugh, do I really ned url here?
-    style.append_style(red)
-    doc.append_style(style)
-
-    style_map = K.StyleMap(
-        ns=ns,
-        id="style-red",
-    )
-    style_map.normal = K.StyleUrl(ns=ns, url="#red-normal")
-    style_map.highlight = K.StyleUrl(ns=ns, url="#red-normal")
-    doc.append_style(style_map)
-
+    kml = KmlMaker()
+    style_url = kml.make_icon_style(name='blue', color='blue')
 
     for lname in INTERESTING:
         # Create a KML Folder and add it to the Document
-        folder = K.Folder(ns=ns, id='fid', name=lname)
+        marks = []
         for p in gen_places(lmap[lname]):
-            pm = K.Placemark(ns=ns, id='id', name=p.name, description=p.address)
+            pm = K.Placemark(
+                id=p.name,
+                name=p.name,
+                description=p.address,
+                styleUrl=style_url,
+            )
             pm.geometry = Point(p.lon, p.lat)
-            pm.styleUrl = f"#style-red"
-            folder.append(pm)
-        doc.append(folder)
+            marks.append(pm)
+        kml.add_folder(
+            name=lname,
+            items=marks,
+        )
 
-    kml.append(doc)
     return kml
 
 
@@ -109,16 +171,3 @@ with open("res.kml", 'w') as fo:
     import sys
     sys.stdout.write(kml.to_string(prettyprint=True))
     fo.write(kml.to_string(prettyprint=True))
-
-raise RuntimeError
-with open("res.csv", 'w') as fo:
-    writer = csv.DictWriter(fo, fieldnames=[
-        "Name",
-        "Address",
-        "Latitude",
-        "Longitude",
-        "Color",
-    ])
-    writer.writeheader()
-    for p in gen_all_places():
-        writer.writerow(p)

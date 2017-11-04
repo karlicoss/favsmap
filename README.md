@@ -4,7 +4,7 @@
 import CSV on google maps (4sq)
 
 # Requirements
-```pip3 install foursquare```
+```pip3 install foursquare webcolors```
 
 # Adding maps
 * https://www.google.com/maps/d/u/0/home?hl=en
