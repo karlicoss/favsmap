@@ -6,6 +6,8 @@ import sys
 from typing import NamedTuple, Iterable, Dict, List, Optional
 
 # pip install fastkml shapely foursquare webcolors
+# lxml is important! otherwise xml would be invalid!
+# apt install python3-lxml
 import fastkml as K # type: ignore
 from shapely.geometry import Point # type: ignore
 import foursquare # type: ignore
@@ -64,7 +66,6 @@ INTERESTING = {
     'london': 'blue',
     'london-todo': 'red',
 }
-
 
 class KmlMaker:
     NS = '{http://www.opengis.net/kml/2.2}'
@@ -174,8 +175,9 @@ def build_kml() -> KmlMaker:
 
 kml = build_kml()
 
+SS = kml.to_string(prettyprint=True)
 with open(OUTPUT, 'w') as fo:
     fo.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-    fo.write(kml.to_string(prettyprint=True))
+    fo.write(SS)
 
 print(f"File to upload:\n{OUTPUT}")
