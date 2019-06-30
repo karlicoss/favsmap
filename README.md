@@ -1,7 +1,5 @@
 # Usage
-```python3.6 -m fsq2gmaps```
-
-import CSV on google maps (4sq)
+```./run --help```
 
 # Requirements
 ```pip3 install foursquare webcolors```
@@ -19,3 +17,5 @@ import CSV on google maps (4sq)
 * show checkins? actually, this could be even more useful!
 * maybe, filter by checkin count.. and show the count in description, or as a label with number (or maybe part of place name)
 * or, maybe figure out 'implicit' visits from google maps and add them on map too?
+* TODO use takout for favorite places?
+* TODO use my private place providers?

@@ -11,9 +11,9 @@ from typing import Dict, Iterable, List, NamedTuple, Optional, Any
 
 from kython.klogging import LazyLogger, setup_logzero
 
-import fastkml as K
-import webcolors
-from shapely.geometry import Point
+import fastkml as K # type: ignore
+import webcolors # type: ignore
+from shapely.geometry import Point # type: ignore
 
 
 logger = LazyLogger('fsq2gmaps')
@@ -78,7 +78,7 @@ class Place(NamedTuple):
         return self.jvenue['location']['lng']
 
     @property
-    def descripton(self) -> str:
+    def description(self) -> str:
         return f"{self.name}\n{self.address}\nList: {self.lst}"
 
 
@@ -278,7 +278,7 @@ function (row) {
         popup = '<br>'.join(p.descripton.splitlines())
         params.append([p.lat, p.lng, p.color, tooltip, popup])
 
-    import folium
+    import folium # type: ignore
     from folium import plugins as fplugins
     fmap = folium.Map(location=LONDON) # TODO perhaps extract in my.geo or something?
     cluster = fplugins.FastMarkerCluster(
