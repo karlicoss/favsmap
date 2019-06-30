@@ -1,35 +1,40 @@
-#!/usr/bin/env python3.6
-from pprint import pprint
-from datetime import datetime
-import os.path
+#!/usr/bin/env python3
+import argparse
+import functools
 import sys
-from typing import NamedTuple, Iterable, Dict, List, Optional
+from datetime import datetime
+from pathlib import Path
+from pprint import pprint
+from typing import Dict, Iterable, List, NamedTuple, Optional
 
-# pip install fastkml shapely foursquare webcolors
-# lxml is important! otherwise xml would be invalid!
-# apt install python3-lxml
-import fastkml as K # type: ignore
-from shapely.geometry import Point # type: ignore
-import foursquare # type: ignore
-import webcolors # type: ignore
+import fastkml as K
+import webcolors
+from shapely.geometry import Point
 
-from config import TOKEN, OUTPUT
 
-api = foursquare.Foursquare(access_token=TOKEN)
+@functools.lru_cache(1)
+def get_4sq_api():
+    from config import TOKEN
+    import foursquare # type: ignore
+    api = foursquare.Foursquare(access_token=TOKEN)
+    return api
 
-lists = api.users.lists() # pylint: disable=no-member
 
-def_lists = lists['lists']['groups'][0]['items']
-user_lists = lists['lists']['groups'][1]['items']
+def get_4sq_data(): # TODO eh, should get local?
+    api = get_4sq_api()
+    lists = api.users.lists() # pylint: disable=no-member
 
-all_lists = def_lists + user_lists
+    def_lists = lists['lists']['groups'][0]['items']
+    user_lists = lists['lists']['groups'][1]['items']
 
-# TODO use favorites too
-lmap = {l['name'].lower(): l for l in all_lists}
+    all_lists = def_lists + user_lists
+    lmap = {l['name'].lower(): l for l in all_lists}
 
-print("LISTS:")
-for k in lmap:
-    print(k)
+    print("LISTS:")
+    for k in lmap:
+        print(k)
+    # TODO use favorites too
+    return lmap
 
 
 class Place(NamedTuple):
@@ -41,6 +46,7 @@ class Place(NamedTuple):
 
 # TODO use layers?
 def gen_places(lst) -> Iterable[Place]:
+    api = get_4sq_api()
     print(f"Scanning list: {lst['name']}")
     ldet = api.lists(lst['id']) # pylint: disable=no-member
     # TODO get all of them, might hit the limit
@@ -58,7 +64,7 @@ def gen_places(lst) -> Iterable[Place]:
         )
 
 
-# TODO rename to config?
+# TODO move to config?
 INTERESTING = {
     'my saved places': 'red',
     'my liked places': 'pink',
@@ -67,6 +73,8 @@ INTERESTING = {
     'london-todo': 'red',
 }
 
+
+# TODO er... whre is it coming from?
 class KmlMaker:
     NS = '{http://www.opengis.net/kml/2.2}'
 
@@ -152,6 +160,7 @@ class KmlMaker:
 # TODO generate each color
 # TODO nicer, declarative DSL for building that crap
 def build_kml() -> KmlMaker:
+    lmap = get_4sq_data()
     kml = KmlMaker()
     for lname, color in INTERESTING.items():
         style_url = None if color is None else kml.make_icon_style(color=color)
@@ -173,11 +182,26 @@ def build_kml() -> KmlMaker:
     return kml
 
 
-kml = build_kml()
+def get_kml() -> str:
+    kml = build_kml()
+    ss = kml.to_string(prettyprint=True)
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ss
 
-SS = kml.to_string(prettyprint=True)
-with open(OUTPUT, 'w') as fo:
-    fo.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-    fo.write(SS)
 
-print(f"File to upload:\n{OUTPUT}")
+def main():
+    pa = argparse.ArgumentParser()
+    pa.add_argument('--kml', type=Path)
+    pa.add_argument('--map', type=Path)
+    args = pa.parse_args()
+
+    if args.kml is not None:
+        args.kml.write_text(get_kml())
+        print(f"File to upload:\n{args.kml}")
+    elif args.map is not None:
+        pass
+    else:
+        raise RuntimeError(args)
+
+
+if __name__ == '__main__':
+    main()
