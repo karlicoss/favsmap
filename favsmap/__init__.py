@@ -194,10 +194,9 @@ class KmlMaker:
 
 # TODO generate each color
 # TODO nicer, declarative DSL for building that crap
-def build_kml() -> KmlMaker:
+def _get_kml(items):
     kml = KmlMaker()
     from kython import group_by_key
-    items = gen_places()
     for lname, places in group_by_key(items, key=lambda p: p.lst).items():
         color = places[0].color
         style_url = None if color is None else kml.make_icon_style(color=color)
@@ -216,7 +215,12 @@ def build_kml() -> KmlMaker:
             items=marks,
         )
 
-    return kml
+    ss = kml.to_string(prettyprint=True)
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ss
+
+
+def get_kml():
+    return _get_kml(gen_places())
 
 
 def get_test_places():
@@ -235,11 +239,6 @@ def get_test_places():
     ]
 
 
-
-def get_kml() -> str:
-    kml = build_kml()
-    ss = kml.to_string(prettyprint=True)
-    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ss
 
 
 def _get_map(places):
@@ -275,7 +274,7 @@ function (row) {
     params = []
     for p in places:
         tooltip = p.name + ' ' + style_list(p.lst, p.color)
-        popup = '<br>'.join(p.descripton.splitlines())
+        popup = '<br>'.join(p.description.splitlines())
         params.append([p.lat, p.lng, p.color, tooltip, popup])
 
     import folium # type: ignore
@@ -311,6 +310,10 @@ def test_get_map():
         places = get_test_places()
         _get_map(places).save(str(mm))
 
+
+def test_get_kml():
+    places = get_test_places()
+    _get_kml(places)
 
 def get_map():
     places = list(gen_places())
